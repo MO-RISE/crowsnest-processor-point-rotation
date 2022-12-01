@@ -32,7 +32,7 @@ MQTT_TOPIC_OUT_LIDAR_NORTHUP: str = env("MQTT_TOPIC_OUT_LIDAR_NORTHUP", "CROWSNE
 
 
 # Setup logger
-LOG_LEVEL = env.log_level("LOG_LEVEL", logging.INFO)
+LOG_LEVEL = env.log_level("LOG_LEVEL", logging.WARNING)
 logging.basicConfig(level=LOG_LEVEL)
 logging.captureWarnings(True)
 warnings.filterwarnings("once")
