@@ -1,0 +1,9 @@
+numpy
+scipy
+paho-mqtt
+streamz
+environs
+pydantic
+datamodel-code-generator
+pytz
+open3d
