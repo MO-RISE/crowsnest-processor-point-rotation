@@ -6,6 +6,7 @@ import json
 import math
 import numpy as np
 import open3d as o3d
+import random
 
 from datetime import datetime, timezone
 from streamz import Stream
@@ -19,7 +20,7 @@ from brefv_spec.envelope import Envelope
 env = Env()
 MQTT_BROKER_HOST: str = env("MQTT_BROKER_HOST", "localhost")
 MQTT_BROKER_PORT: int = env.int("MQTT_BROKER_PORT", 1883)
-MQTT_CLIENT_ID: str = env("MQTT_CLIENT_ID", None)
+MQTT_CLIENT_ID: str = env("MQTT_CLIENT_ID", "")
 MQTT_TRANSPORT: str = env("MQTT_TRANSPORT", "tcp")
 MQTT_TLS: bool = env.bool("MQTT_TLS", False)
 MQTT_USER: str = env("MQTT_USER", None)
@@ -41,6 +42,8 @@ LOGGER = logging.getLogger("crowsnest-processor-radar-north-up")
 
 # Create mqtt client and configure it according to configuration
 global mq
+
+ID_RANDOM = MQTT_CLIENT_ID + str(random.randint(1,999))
 mq = MQTT(client_id=MQTT_CLIENT_ID, transport=MQTT_TRANSPORT)
 mq.username_pw_set(MQTT_USER, MQTT_PASSWORD)
 if MQTT_TLS:
@@ -106,6 +109,10 @@ def on_message(client, userdata, message):
         else:  # Radar and LIDAR sweeps
             source.emit(msg)
 
+def on_disconnect(args):
+    LOGGER.warning("Disconnected from broker")
+    mq.reconnect()
+    
 
 def subscribe_to_mqtt():
     """Init MQTT topic subscription"""
@@ -114,6 +121,7 @@ def subscribe_to_mqtt():
     mq.subscribe(MQTT_TOPIC_IN_RADAR_SWEEP)
     mq.subscribe(MQTT_TOPIC_IN_HEADING)
     mq.on_message = on_message
+    mq.on_disconnect = on_disconnect
     mq.loop_forever()
 
 
