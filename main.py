@@ -7,6 +7,7 @@ import math
 import numpy as np
 import open3d as o3d
 import random
+import threading
 
 from datetime import datetime, timezone
 from streamz import Stream
@@ -20,14 +21,14 @@ from brefv_spec.envelope import Envelope
 env = Env()
 MQTT_BROKER_HOST: str = env("MQTT_BROKER_HOST", "localhost")
 MQTT_BROKER_PORT: int = env.int("MQTT_BROKER_PORT", 1883)
-MQTT_CLIENT_ID: str = env("MQTT_CLIENT_ID", "")
+MQTT_CLIENT_ID: str = env("MQTT_CLIENT_ID", "processor-points")
 MQTT_TRANSPORT: str = env("MQTT_TRANSPORT", "tcp")
 MQTT_TLS: bool = env.bool("MQTT_TLS", False)
 MQTT_USER: str = env("MQTT_USER", None)
 MQTT_PASSWORD: str = env("MQTT_PASSWORD", None)
-MQTT_TOPIC_IN_RADAR_SWEEP: str = env("MQTT_TOPIC_IN_RADAR_SWEEP", "CROWSNEST/SEAHORSE/RADAR/0/sweep")
+MQTT_TOPIC_IN_RADAR_SWEEP: str = env("MQTT_TOPIC_IN_RADAR_SWEEP", "CROWSNEST/SEAHORSE/RADAR/0/SWEEP")
 MQTT_TOPIC_IN_LIDAR_SWEEP: str = env("MQTT_TOPIC_IN_LIDAR_SWEEP", "CROWSNEST/SEAHORSE/LIDAR/0/POINTCLOUD")
-MQTT_TOPIC_IN_HEADING: str = env("MQTT_TOPIC_IN_HEADING", "CROWSNEST/SEAHORSE/GNSS/0")
+MQTT_TOPIC_IN_HEADING: str = env("MQTT_TOPIC_IN_HEADING", "CROWSNEST/SEAHORSE/GNSS/0/JSON")
 MQTT_TOPIC_OUT_RADAR_NORTHUP: str = env("MQTT_TOPIC_OUT_RADAR_NORTHUP", "CROWSNEST/SEAHORSE/RADAR/0/NUP")
 MQTT_TOPIC_OUT_LIDAR_NORTHUP: str = env("MQTT_TOPIC_OUT_LIDAR_NORTHUP", "CROWSNEST/SEAHORSE/LIDAR/0/NUP")
 
@@ -42,15 +43,6 @@ LOGGER = logging.getLogger("crowsnest-processor-radar-north-up")
 
 # Create mqtt client and configure it according to configuration
 global mq
-
-ID_RANDOM = MQTT_CLIENT_ID + str(random.randint(1,999))
-mq = MQTT(client_id=MQTT_CLIENT_ID, transport=MQTT_TRANSPORT)
-mq.username_pw_set(MQTT_USER, MQTT_PASSWORD)
-if MQTT_TLS:
-    mq.tls_set()
-mq.enable_logger(LOGGER)
-LOGGER.info("Connecting to MQTT broker...")
-mq.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
 
 def to_brefv_raw(point_cloud):
@@ -109,21 +101,15 @@ def on_message(client, userdata, message):
         else:  # Radar and LIDAR sweeps
             source.emit(msg)
 
-def on_disconnect(args):
+def on_disconnect(client, userdata,  rc):
     LOGGER.warning("Disconnected from broker")
     mq.reconnect()
     
-
-def subscribe_to_mqtt():
-    """Init MQTT topic subscription"""
-
+def on_connect(client, userdata, flags, rc):
+    LOGGER.info("Connected to broker")
     mq.subscribe(MQTT_TOPIC_IN_LIDAR_SWEEP)
     mq.subscribe(MQTT_TOPIC_IN_RADAR_SWEEP)
     mq.subscribe(MQTT_TOPIC_IN_HEADING)
-    mq.on_message = on_message
-    mq.on_disconnect = on_disconnect
-    mq.loop_forever()
-
 
 def rotate_points_azimuth(input_stream):
     """
@@ -185,5 +171,19 @@ if __name__ == "__main__":
     pipe_heading = source_heading.latest()
     pipe_rotate = source.zip(pipe_heading).map(rotate_points_azimuth).map(to_brefv_raw).sink(to_mqtt)
 
+    ID_RANDOM = MQTT_CLIENT_ID + str(random.randint(1,999))
+    mq = MQTT(client_id=ID_RANDOM, transport=MQTT_TRANSPORT)
+    mq.username_pw_set(MQTT_USER, MQTT_PASSWORD)
+    if MQTT_TLS:
+        mq.tls_set()
+    mq.enable_logger(LOGGER)
+    LOGGER.info("Connecting to MQTT broker...")
+    mq.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT)
+
     LOGGER.info("Setting up MQTT listener...")
-    subscribe_to_mqtt()
+
+    mq.on_message = on_message
+    mq.on_disconnect = on_disconnect
+    mq.on_connect = on_connect
+    mq.loop_forever()
+    # threading.Thread(target=mq.loop_forever, daemon=True).start()
