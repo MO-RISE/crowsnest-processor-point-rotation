@@ -46,6 +46,7 @@ mq.username_pw_set(MQTT_USER, MQTT_PASSWORD)
 if MQTT_TLS:
     mq.tls_set()
 mq.enable_logger(LOGGER)
+LOGGER.info("Connecting to MQTT broker...")
 mq.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
 
@@ -175,9 +176,6 @@ if __name__ == "__main__":
     # MQTT publish stream
     pipe_heading = source_heading.latest()
     pipe_rotate = source.zip(pipe_heading).map(rotate_points_azimuth).map(to_brefv_raw).sink(to_mqtt)
-
-    LOGGER.info("Connecting to MQTT broker...")
-    mq.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
     LOGGER.info("Setting up MQTT listener...")
     subscribe_to_mqtt()
