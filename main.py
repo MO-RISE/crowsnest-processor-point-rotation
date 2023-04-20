@@ -29,6 +29,7 @@ MQTT_PASSWORD: str = env("MQTT_PASSWORD", None)
 MQTT_TOPIC_IN_RADAR_SWEEP: str = env("MQTT_TOPIC_IN_RADAR_SWEEP", "CROWSNEST/SEAHORSE/RADAR/0/SWEEP")
 MQTT_TOPIC_IN_LIDAR_SWEEP: str = env("MQTT_TOPIC_IN_LIDAR_SWEEP", "CROWSNEST/SEAHORSE/LIDAR/0/POINTCLOUD")
 MQTT_TOPIC_IN_HEADING: str = env("MQTT_TOPIC_IN_HEADING", "CROWSNEST/SEAHORSE/GNSS/0/JSON")
+CORR_HEADING: int = env("CORR_HEADING", 0)
 MQTT_TOPIC_OUT_RADAR_NORTHUP: str = env("MQTT_TOPIC_OUT_RADAR_NORTHUP", "CROWSNEST/SEAHORSE/RADAR/0/NUP")
 MQTT_TOPIC_OUT_LIDAR_NORTHUP: str = env("MQTT_TOPIC_OUT_LIDAR_NORTHUP", "CROWSNEST/SEAHORSE/LIDAR/0/NUP")
 
@@ -98,7 +99,8 @@ def on_message(client, userdata, message):
         msg = payload["message"]
 
         if topic == MQTT_TOPIC_IN_HEADING:
-            source_heading.emit(float(msg["heading"]))
+            corrected_heading = CORR_HEADING + float(msg["heading"])
+            source_heading.emit(corrected_heading)
 
         else:  # Radar and LIDAR sweeps
             source.emit(msg)
