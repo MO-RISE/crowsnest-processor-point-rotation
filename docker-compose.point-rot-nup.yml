@@ -3,6 +3,7 @@ services:
 
   point-rotation:
     build: .
+    container_name: cw-point-rot-nup
     restart: unless-stopped
     network_mode: "host"
     environment:
