@@ -169,7 +169,8 @@ if __name__ == "__main__":
 
     # MQTT publish stream
     pipe_heading = source_heading.latest()
-    pipe_rotate = source.zip(pipe_heading).map(rotate_points_azimuth).map(to_brefv_raw).sink(to_mqtt)
+    combined = source.latest().zip_latest()
+    combined.map(rotate_points_azimuth).map(to_brefv_raw).sink(to_mqtt)
 
     ID_RANDOM = MQTT_CLIENT_ID + str(random.randint(1,999))
     mq = MQTT(client_id=ID_RANDOM, transport=MQTT_TRANSPORT)
