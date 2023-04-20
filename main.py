@@ -7,7 +7,6 @@ import math
 import numpy as np
 import open3d as o3d
 import random
-import threading
 
 from datetime import datetime, timezone
 from streamz import Stream
