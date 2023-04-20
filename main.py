@@ -43,12 +43,13 @@ LOGGER = logging.getLogger("crowsnest-processor-radar-north-up")
 
 
 # Create mqtt client and configure it according to configuration
-ID_RANDOM = MQTT_CLIENT_ID + str(random.randint(1,999))
+ID_RANDOM = MQTT_CLIENT_ID + str(random.randint(1, 999))
 mq = MQTT(client_id=ID_RANDOM, transport=MQTT_TRANSPORT)
 mq.username_pw_set(MQTT_USER, MQTT_PASSWORD)
 if MQTT_TLS:
     mq.tls_set()
 mq.enable_logger(LOGGER)
+
 
 def to_brefv_raw(point_cloud):
     """Raw in message to brefv envelope"""
@@ -100,20 +101,30 @@ def on_message(client, userdata, message):
 
         if topic == MQTT_TOPIC_IN_HEADING:
             corrected_heading = CORR_HEADING + float(msg["heading"])
+
+            # Check that heading is within 0-360 after correction
+            if corrected_heading < 360:
+                corrected_heading + 360
+            elif corrected_heading > 360:
+                corrected_heading - 360
+
             source_heading.emit(corrected_heading)
 
         else:  # Radar and LIDAR sweeps
             source.emit(msg)
 
-def on_disconnect(client, userdata,  rc):
+
+def on_disconnect(client, userdata, rc):
     LOGGER.warning("Disconnected from broker")
     mq.reconnect()
-    
+
+
 def on_connect(client, userdata, flags, rc):
     LOGGER.info("Connected to broker")
     mq.subscribe(MQTT_TOPIC_IN_LIDAR_SWEEP)
     mq.subscribe(MQTT_TOPIC_IN_RADAR_SWEEP)
     mq.subscribe(MQTT_TOPIC_IN_HEADING)
+
 
 def rotate_points_azimuth(input_stream):
     """
@@ -129,9 +140,8 @@ def rotate_points_azimuth(input_stream):
     # Map out variables
     point_coordinates, degrees = input_stream
 
-
-    LOGGER.debug("Rotating to: %s", degrees) 
-    degrees = -degrees 
+    LOGGER.debug("Rotating to: %s", degrees)
+    degrees = -degrees
     xy_or_xyz = len(list(point_coordinates["points"][0]))
 
     if xy_or_xyz == 2:  # Radar
@@ -160,7 +170,6 @@ def rotate_points_azimuth(input_stream):
 
 
 if __name__ == "__main__":
-
     mq.on_message = on_message
     mq.on_disconnect = on_disconnect
     mq.on_connect = on_connect
@@ -181,13 +190,10 @@ if __name__ == "__main__":
     combined = source.latest().zip_latest(pipe_heading)
     combined.map(rotate_points_azimuth).map(to_brefv_raw).sink(to_mqtt)
 
-
-    
     LOGGER.info("Connecting to MQTT broker...")
     mq.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
     LOGGER.info("Setting up MQTT listener...")
 
- 
     mq.loop_forever()
     # threading.Thread(target=mq.loop_forever, daemon=True).start()
