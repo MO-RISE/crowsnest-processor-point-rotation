@@ -34,7 +34,7 @@ MQTT_TOPIC_OUT_LIDAR_NORTHUP: str = env("MQTT_TOPIC_OUT_LIDAR_NORTHUP", "CROWSNE
 
 
 # Setup logger
-LOG_LEVEL = env.log_level("LOG_LEVEL", logging.WARNING)
+LOG_LEVEL = env.log_level("LOG_LEVEL", logging.DEBUG)
 logging.basicConfig(level=LOG_LEVEL)
 logging.captureWarnings(True)
 warnings.filterwarnings("once")
@@ -42,8 +42,12 @@ LOGGER = logging.getLogger("crowsnest-processor-radar-north-up")
 
 
 # Create mqtt client and configure it according to configuration
-global mq
-
+ID_RANDOM = MQTT_CLIENT_ID + str(random.randint(1,999))
+mq = MQTT(client_id=ID_RANDOM, transport=MQTT_TRANSPORT)
+mq.username_pw_set(MQTT_USER, MQTT_PASSWORD)
+if MQTT_TLS:
+    mq.tls_set()
+mq.enable_logger(LOGGER)
 
 def to_brefv_raw(point_cloud):
     """Raw in message to brefv envelope"""
@@ -84,8 +88,6 @@ def to_mqtt(brefv_msg: Any):
 
 
 def on_message(client, userdata, message):
-    LOGGER.info("New Message...")
-
     msg = message.payload.decode("utf-8")
     payload = json.loads(msg)
     topic = message.topic
@@ -157,6 +159,10 @@ def rotate_points_azimuth(input_stream):
 
 if __name__ == "__main__":
 
+    mq.on_message = on_message
+    mq.on_disconnect = on_disconnect
+    mq.on_connect = on_connect
+
     # Build pipeline
     LOGGER.info("Building pipeline...")
 
@@ -169,22 +175,17 @@ if __name__ == "__main__":
 
     # MQTT publish stream
     pipe_heading = source_heading.latest()
-    combined = source.latest().zip_latest()
+    # combined = source.latest().zip(pipe_heading)
+    combined = source.latest().zip_latest(pipe_heading)
     combined.map(rotate_points_azimuth).map(to_brefv_raw).sink(to_mqtt)
 
-    ID_RANDOM = MQTT_CLIENT_ID + str(random.randint(1,999))
-    mq = MQTT(client_id=ID_RANDOM, transport=MQTT_TRANSPORT)
-    mq.username_pw_set(MQTT_USER, MQTT_PASSWORD)
-    if MQTT_TLS:
-        mq.tls_set()
-    mq.enable_logger(LOGGER)
+
+    
     LOGGER.info("Connecting to MQTT broker...")
     mq.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
     LOGGER.info("Setting up MQTT listener...")
 
-    mq.on_message = on_message
-    mq.on_disconnect = on_disconnect
-    mq.on_connect = on_connect
+ 
     mq.loop_forever()
     # threading.Thread(target=mq.loop_forever, daemon=True).start()
