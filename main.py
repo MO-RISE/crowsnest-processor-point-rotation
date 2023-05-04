@@ -25,17 +25,18 @@ MQTT_TRANSPORT: str = env("MQTT_TRANSPORT", "tcp")
 MQTT_TLS: bool = env.bool("MQTT_TLS", False)
 MQTT_USER: str = env("MQTT_USER", None)
 MQTT_PASSWORD: str = env("MQTT_PASSWORD", None)
+
 MQTT_TOPIC_IN_RADAR_SWEEP: str = env("MQTT_TOPIC_IN_RADAR_SWEEP", "CROWSNEST/SEAHORSE/RADAR/0/SWEEP")
 MQTT_TOPIC_IN_LIDAR_SWEEP: str = env("MQTT_TOPIC_IN_LIDAR_SWEEP", "CROWSNEST/SEAHORSE/LIDAR/0/POINTCLOUD")
 MQTT_TOPIC_IN_HEADING: str = env("MQTT_TOPIC_IN_HEADING", "CROWSNEST/SEAHORSE/GNSS/0/JSON")
-CORR_HEADING: int = env.int("CORR_HEADING", 0)
 MQTT_TOPIC_OUT_RADAR_NORTHUP: str = env("MQTT_TOPIC_OUT_RADAR_NORTHUP", "CROWSNEST/SEAHORSE/RADAR/0/NUP")
 MQTT_TOPIC_OUT_LIDAR_NORTHUP: str = env("MQTT_TOPIC_OUT_LIDAR_NORTHUP", "CROWSNEST/SEAHORSE/LIDAR/0/NUP")
 
+CORR_HEADING: int = env.int("CORR_HEADING", 0)
 
 # Setup logger
 LOG_LEVEL = env.log_level("LOG_LEVEL", logging.INFO)
-# log_level = env.log_level("LOG_LEVEL")
+
 logging.basicConfig(level=LOG_LEVEL)
 logging.captureWarnings(True)
 warnings.filterwarnings("once")
@@ -104,8 +105,8 @@ def on_message(client, userdata, message):
             LOGGER.debug("Heading tyep: %s", type(msg["heading"]))
             LOGGER.debug("Heading CORR: %s", type(CORR_HEADING))
             LOGGER.debug("Heading CORR: %s", CORR_HEADING)
-            
-            heading =  float(msg["heading"])
+
+            heading = float(msg["heading"])
             corrected_heading = CORR_HEADING + heading
 
             # Check that heading is within 0-360 after correction
@@ -191,15 +192,15 @@ if __name__ == "__main__":
     source_heading = Stream()
 
     # MQTT publish stream
-    
-    # Original with latest() to slow 
+
+    # Original with latest() to slow
     # pipe_heading = source_heading.latest()
     # combined = source.latest().zip_latest(pipe_heading)
 
-    # New version with only zip_latest looks to be managing it 
+    # New version with only zip_latest looks to be managing it
     pipe_heading = source_heading
     combined = source.zip_latest(pipe_heading)
-    
+
     combined.map(rotate_points_azimuth).map(to_brefv_raw).sink(to_mqtt)
 
     LOGGER.info("Connecting to MQTT broker...")
@@ -208,4 +209,3 @@ if __name__ == "__main__":
     LOGGER.info("Setting up MQTT listener...")
 
     mq.loop_forever()
-    # threading.Thread(target=mq.loop_forever, daemon=True).start()
